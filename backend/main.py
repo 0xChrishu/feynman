@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from typing import Optional
 import requests
 from bs4 import BeautifulSoup
-from openai import OpenAI
 from dotenv import load_dotenv
 import uvicorn
 from sqlalchemy.orm import Session
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session
 from database import get_db, init_db
 from models import User, LearningSession, UserStatistics
 from auth import create_access_token, get_current_user, get_optional_user
+from llm_providers import get_available_providers, get_llm_client
 
 load_dotenv()
 
@@ -33,17 +33,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client for 阿里通义千问
-llm_api_key = os.getenv("LLM_API_KEY")
-llm_base_url = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-llm_model = os.getenv("LLM_MODEL", "qwen-plus")
-
-llm_client = OpenAI(api_key=llm_api_key, base_url=llm_base_url)
-
 
 class ContentRequest(BaseModel):
     type: str  # 'text' or 'url'
     content: str
+    provider: Optional[str] = None  # AI 服务商
 
 
 def extract_text_from_url(url: str) -> str:
@@ -80,6 +74,9 @@ async def generate_question(request: ContentRequest):
     if len(text) > 15000:
         text = text[:15000]
 
+    # Get LLM client based on provider
+    client, model = get_llm_client(request.provider)
+
     system_prompt = (
         "你是一个'费曼教练'。你的目标是通过教学来帮助用户学习。"
         "用户会提供一段文本。"
@@ -90,8 +87,8 @@ async def generate_question(request: ContentRequest):
     )
 
     try:
-        response = llm_client.chat.completions.create(
-            model=llm_model,
+        response = client.chat.completions.create(
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
@@ -108,13 +105,17 @@ async def generate_question(request: ContentRequest):
 async def evaluate_answer(
     file: Optional[UploadFile] = File(None),
     answer_text: Optional[str] = Form(None),
-    original_content: str = Form(...)
+    original_content: str = Form(...),
+    provider: Optional[str] = Form(None)
 ):
     """Evaluate the user's answer and provide feedback with a score."""
     user_answer = answer_text
 
     if not user_answer:
         raise HTTPException(status_code=400, detail="未提供回答")
+
+    # Get LLM client based on provider
+    client, model = get_llm_client(provider)
 
     system_prompt = (
         "你是一个'费曼教练'。请对比用户的解释与原文。"
@@ -125,8 +126,8 @@ async def evaluate_answer(
     )
 
     try:
-        response = llm_client.chat.completions.create(
-            model=llm_model,
+        response = client.chat.completions.create(
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Original Text: {original_content}\n\nUser Answer: {user_answer}"}
@@ -333,6 +334,12 @@ async def get_statistics(current_user: User = Depends(get_current_user), db: Ses
         "avg_score": stats.avg_score,
         "best_score": stats.best_score
     }
+
+
+@app.get("/api/llm/providers")
+async def get_llm_providers():
+    """获取可用的 AI 模型服务商列表"""
+    return {"providers": get_available_providers()}
 
 
 @app.get("/api/health")

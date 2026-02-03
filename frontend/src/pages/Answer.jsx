@@ -9,7 +9,7 @@ const Answer = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { questionData } = location.state || {};
+  const { questionData, provider } = location.state || {};
 
   if (!questionData) {
     navigate('/');
@@ -25,8 +25,11 @@ const Answer = () => {
       const formData = new FormData();
       formData.append('answer_text', answer);
       formData.append('original_content', questionData.original_content);
+      if (provider) {
+        formData.append('provider', provider);
+      }
 
-      const result = await evaluateAnswer(formData);
+      const result = await evaluateAnswer(formData, provider);
 
       // Save session if logged in
       const token = localStorage.getItem('token');

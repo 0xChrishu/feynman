@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { generateQuestion } from '../api';
 import { ArrowRight, Link as LinkIcon, FileText, Loader2 } from 'lucide-react';
 import Layout from '../components/Layout';
+import ModelSelector from '../components/ModelSelector';
 
 const Home = () => {
   const [inputType, setInputType] = useState('text');
   const [content, setContent] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -16,8 +18,8 @@ const Home = () => {
 
     setLoading(true);
     try {
-      const data = await generateQuestion(content, inputType);
-      navigate('/answer', { state: { questionData: data } });
+      const data = await generateQuestion(content, inputType, selectedProvider);
+      navigate('/answer', { state: { questionData: data, provider: selectedProvider } });
     } catch (error) {
       console.error('Error:', error);
       alert('生成问题失败，请重试');
@@ -29,11 +31,14 @@ const Home = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="text-center space-y-2 mb-8">
-          <h2 className="text-2xl font-semibold text-moss-green-800">开始你的费曼学习之旅</h2>
-          <p className="text-moss-green-600">
-            输入你想学习的内容，我会像苏格拉底一样向你提问。
-          </p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-semibold text-moss-green-800">开始你的费曼学习之旅</h2>
+            <p className="text-moss-green-600">
+              输入你想学习的内容，我会像苏格拉底一样向你提问。
+            </p>
+          </div>
+          <ModelSelector selectedProvider={selectedProvider} onProviderChange={setSelectedProvider} />
         </div>
 
         <div className="flex p-1 bg-moss-green-50 rounded-lg mb-6">

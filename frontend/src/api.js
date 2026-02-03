@@ -30,17 +30,23 @@ api.interceptors.response.use(
   }
 );
 
-export const generateQuestion = async (content, type = 'text') => {
-  const response = await api.post('/generate-question', { content, type });
+export const generateQuestion = async (content, type = 'text', provider = null) => {
+  const response = await api.post('/generate-question', { content, type, provider });
   return response.data;
 };
 
-export const evaluateAnswer = async (formData) => {
+export const evaluateAnswer = async (formData, provider = null) => {
   const response = await api.post('/evaluate-answer', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    params: provider ? { provider } : {},
   });
+  return response.data;
+};
+
+export const getLlmProviders = async () => {
+  const response = await api.get('/llm/providers');
   return response.data;
 };
 
