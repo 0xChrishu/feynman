@@ -12,9 +12,7 @@ AI_PROVIDERS: Dict[str, Dict] = {
         "name": "DeepSeek",
         "base_url": "https://api.deepseek.com",
         "model": "deepseek-chat",
-        "description": "免费 500万 tokens/天，性能优秀",
-        "api_key_env": "DEEPSEEK_API_KEY",
-        "default": True
+        "api_key_env": "DEEPSEEK_API_KEY"
     },
     "groq": {
         "name": "Groq",
@@ -34,8 +32,8 @@ AI_PROVIDERS: Dict[str, Dict] = {
         "name": "智谱 AI",
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
         "model": "glm-4-flash",
-        "description": "25 元/天免费额度",
-        "api_key_env": "ZHIPU_API_KEY"
+        "api_key_env": "ZHIPU_API_KEY",
+        "default": True
     },
     "qwen": {
         "name": "通义千问",
@@ -56,9 +54,10 @@ def get_available_providers() -> List[Dict]:
             available.append({
                 "id": provider_id,
                 "name": config["name"],
-                "description": config["description"],
                 "model": config["model"]
             })
+    # Sort with default provider first
+    available.sort(key=lambda x: 0 if AI_PROVIDERS[x["id"]].get("default") else 1)
     return available
 
 

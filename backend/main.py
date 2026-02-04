@@ -1,7 +1,10 @@
 import os
 import json
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Optional
 import requests
@@ -14,10 +17,16 @@ from database import get_db, init_db
 from models import User, LearningSession, UserStatistics
 from auth import create_access_token, get_current_user, get_optional_user
 from llm_providers import get_available_providers, get_llm_client
+from api.v1 import router as v1_router
+from api.v2 import router as v2_router
 
 load_dotenv()
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Learning Coach API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -33,6 +42,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include versioned API routers
+app.include_router(v1_router, prefix="/api")
+app.include_router(v2_router, prefix="/api")
+
+
+# ========== Legacy API endpoints (for backwards compatibility) ==========
 
 class ContentRequest(BaseModel):
     type: str  # 'text' or 'url'
@@ -61,11 +76,12 @@ def extract_text_from_url(url: str) -> str:
 
 
 @app.post("/api/generate-question")
-async def generate_question(request: ContentRequest):
+@limiter.limit("10/minute")
+async def generate_question(content_request: ContentRequest, request: Request):
     """Generate a Socratic question based on the input content."""
-    text = request.content
-    if request.type == 'url':
-        text = extract_text_from_url(request.content)
+    text = content_request.content
+    if content_request.type == 'url':
+        text = extract_text_from_url(content_request.content)
 
     if not text:
         raise HTTPException(status_code=400, detail="Could not extract text from content")
@@ -75,7 +91,7 @@ async def generate_question(request: ContentRequest):
         text = text[:15000]
 
     # Get LLM client based on provider
-    client, model = get_llm_client(request.provider)
+    client, model = get_llm_client(content_request.provider)
 
     system_prompt = (
         "你是一个'费曼教练'。你的目标是通过教学来帮助用户学习。"
@@ -102,7 +118,9 @@ async def generate_question(request: ContentRequest):
 
 
 @app.post("/api/evaluate-answer")
+@limiter.limit("10/minute")
 async def evaluate_answer(
+    request: Request,
     file: Optional[UploadFile] = File(None),
     answer_text: Optional[str] = Form(None),
     original_content: str = Form(...),
@@ -147,7 +165,7 @@ async def evaluate_answer(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ========== Auth API ==========
+# ========== Auth API (Legacy) ==========
 
 class RegisterRequest(BaseModel):
     email: str
@@ -225,7 +243,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
     }
 
 
-# ========== Sessions API ==========
+# ========== Sessions API (Legacy) ==========
 
 class SaveSessionRequest(BaseModel):
     content_type: str
@@ -315,7 +333,7 @@ async def get_session(session_id: str, current_user: User = Depends(get_current_
     }
 
 
-# ========== Statistics API ==========
+# ========== Statistics API (Legacy) ==========
 
 @app.get("/api/statistics/overview")
 async def get_statistics(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -345,7 +363,7 @@ async def get_llm_providers():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    return {"status": "healthy", "version": "1.0"}
 
 
 if __name__ == "__main__":

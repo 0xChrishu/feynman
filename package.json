@@ -1,0 +1,19 @@
+{
+  "name": "learning-coach-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @learning-coach/web dev",
+    "build": "pnpm --filter @learning-coach/web build",
+    "build:shared": "pnpm --filter @learning-coach/shared build",
+    "lint": "pnpm -r lint",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
+  },
+  "devDependencies": {
+    "pnpm": "^9.15.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

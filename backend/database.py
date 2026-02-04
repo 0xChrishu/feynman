@@ -29,5 +29,5 @@ def get_db() -> Session:
 
 def init_db():
     """Initialize database tables."""
-    from models import User, LearningSession, UserStatistics
+    from models import User, LearningSession, UserStatistics, FlashCard, FlashCardReview
     Base.metadata.create_all(bind=engine)
